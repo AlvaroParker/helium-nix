@@ -1,5 +1,5 @@
 {
-  description = "A basic AppImage bundler";
+  description = "Helium browser on Nix";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
