@@ -26,11 +26,11 @@
         helium = pkgs.appimageTools.wrapType2 rec {
 
           pname = "helium";
-          version = "0.8.5.1";
+          version = "0.9.1.1";
 
           src = pkgs.fetchurl {
             url = "https://github.com/imputnet/helium-linux/releases/download/${version}/${pname}-${version}-x86_64.AppImage";
-            sha256 = "sha256-jFSLLDsHB/NiJqFmn8S+JpdM8iCy3Zgyq+8l4RkBecM=";
+            sha256 = "sha256-0Kw8Ko41Gdz4xLn62riYAny99Hd0s7/75h8bz4LUuCE=";
           };
 
           extraInstallCommands =
