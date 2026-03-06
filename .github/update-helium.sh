@@ -43,10 +43,6 @@ get_current_version_from_flake() {
     grep -oE 'version = "[^"]+";' flake.nix | sed 's/version = "//;s/";//'
 }
 
-get_current_sha256_from_flake() {
-    grep -oE 'sha256 = "[^"]+";' flake.nix | sed 's/sha256 = "//;s/";//'
-}
-
 main() {
     set -e
 
@@ -73,11 +69,13 @@ main() {
         exit 0
     fi
 
-    download_url="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-x86_64.AppImage"
+    download_url_aarch64="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-aarch64.AppImage"
+    download_url_x86_64="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-x86_64.AppImage"
+
 
     echo "Prefetching new version..."
-    prefetch_output=$(nix store prefetch-file --hash-type sha256 --json "$download_url")
-    new_sha256=$(echo "$prefetch_output" | jq -r '.hash')
+    new_hash_aarch64=$(nix store prefetch-file --hash-type sha256 --json "$download_url_aarch64" | jq -r '.hash')
+    new_hash_x86_64=$(nix store prefetch-file --hash-type sha256 --json "$download_url_x86_64" | jq -r '.hash')
 
     echo "Updating flake.nix..."
 
@@ -85,8 +83,8 @@ main() {
     sed -i "s/version = \"[^\"]*\";/version = \"$remote_version\";/" flake.nix
 
     # Update SHA256
-    old_sha256=$(get_current_sha256_from_flake)
-    sed -i "s|sha256 = \"$old_sha256\";|sha256 = \"$new_sha256\";|" flake.nix
+    sed -i "s|aarch64-linux = \"sha256-[^\"]*\";|aarch64-linux = \"$new_hash_aarch64\";|" flake.nix
+    sed -i "s|x86_64-linux = \"sha256-[^\"]*\";|x86_64-linux = \"$new_hash_x86_64\";|" flake.nix
 
     echo "Updated Helium from $local_version to $remote_version"
 
