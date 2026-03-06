@@ -51,6 +51,24 @@ prefetch() {
     nix store prefetch-file --hash-type sha256 --json "$1" | jq -r '.hash'
 }
 
+write_versions_nix() {
+    cat > versions.nix << EOF
+{
+  version = "$1";
+  systems = {
+    aarch64-linux = {
+      appimage = "$2";
+      tarball  = "$3";
+    };
+    x86_64-linux = {
+      appimage = "$4";
+      tarball  = "$5";
+    };
+  };
+}
+EOF
+}
+
 main() {
     set -e
 
@@ -80,25 +98,18 @@ main() {
     base_url="${download_base}/${remote_version}/helium-${remote_version}"
 
     echo "Prefetching new hashes..."
-    new_appimage_aarch64=$(prefetch "${base_url}-arm64.AppImage")
-    new_appimage_x86_64=$(prefetch "${base_url}-x86_64.AppImage")
-    new_tarball_aarch64=$(prefetch "${base_url}-arm64_linux.tar.xz")
-    new_tarball_x86_64=$(prefetch "${base_url}-x86_64_linux.tar.xz")
+    new_aarch64_appimage=$(prefetch "${base_url}-arm64.AppImage")
+    new_aarch64_tarball=$(prefetch "${base_url}-arm64_linux.tar.xz")
+    new_x86_64_appimage=$(prefetch "${base_url}-x86_64.AppImage")
+    new_x86_64_tarball=$(prefetch "${base_url}-x86_64_linux.tar.xz")
 
     echo "Updating versions.nix..."
-    cat > versions.nix << EOF
-{
-  version = "$remote_version";
-  appimage = {
-    aarch64-linux = "$new_appimage_aarch64";
-    x86_64-linux  = "$new_appimage_x86_64";
-  };
-  tarball = {
-    aarch64-linux = "$new_tarball_aarch64";
-    x86_64-linux  = "$new_tarball_x86_64";
-  };
-}
-EOF
+    write_versions_nix \
+        "$remote_version" \
+        "$new_aarch64_appimage" \
+        "$new_aarch64_tarball" \
+        "$new_x86_64_appimage" \
+        "$new_x86_64_tarball"
 
     echo "Updated Helium from $local_version to $remote_version"
 
