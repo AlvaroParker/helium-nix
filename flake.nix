@@ -10,16 +10,12 @@
   outputs =
     { nixpkgs, ... }:
     let
-      version = "0.9.4.1";
-
-      releases = {
-        aarch64-linux = "sha256-BvU0bHtJMd6e09HY+9Vhycr3J0O2hunRJCHXpzKF8lk=";
-        x86_64-linux = "sha256-N5gdWuxOrIudJx/4nYo4/SKSxakpTFvL4zzByv6Cnug=";
-      };
+      data = import ./versions.nix;
+      version = data.version;
     in
     {
       packages = builtins.mapAttrs (
-        system: hash:
+        system: _:
         let
           arch =
             {
@@ -28,13 +24,13 @@
             }
             .${system};
           pkgs = nixpkgs.legacyPackages.${system};
-          pkg = pkgs.appimageTools.wrapType2 rec {
+          pkg-appimage = pkgs.appimageTools.wrapType2 rec {
             pname = "helium";
             inherit version;
 
             src = pkgs.fetchurl {
               url = "https://github.com/imputnet/helium-linux/releases/download/${version}/${pname}-${version}-${arch}.AppImage";
-              inherit hash;
+              hash = data.appimage.${system};
             };
 
             extraInstallCommands =
@@ -50,9 +46,9 @@
           };
         in
         {
-          helium = pkg;
-          default = pkg;
+          helium-appimage = pkg-appimage;
+          default = pkg-appimage;
         }
-      ) releases;
+      ) data.appimage;
     };
 }

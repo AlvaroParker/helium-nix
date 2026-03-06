@@ -1,5 +1,9 @@
 #!/bin/sh
 
+repo="imputnet/helium-linux"
+api_base="https://api.github.com/repos/${repo}"
+download_base="https://github.com/${repo}/releases/download"
+
 ci=false
 if echo "$@" | grep -qoE '(--ci)'; then
     ci=true
@@ -36,11 +40,15 @@ with_retry() {
 }
 
 get_latest_release() {
-    with_retry curl -s "https://api.github.com/repos/imputnet/helium-linux/releases/latest"
+    with_retry curl -s "${api_base}/releases/latest"
 }
 
-get_current_version_from_flake() {
-    grep -oE 'version = "[^"]+";' flake.nix | sed 's/version = "//;s/";//'
+get_current_version() {
+    grep -oE 'version = "[^"]+";' versions.nix | sed 's/version = "//;s/";//'
+}
+
+prefetch() {
+    nix store prefetch-file --hash-type sha256 --json "$1" | jq -r '.hash'
 }
 
 main() {
@@ -50,7 +58,7 @@ main() {
     latest_release=$(get_latest_release)
 
     remote_version=$(echo "$latest_release" | jq -r '.tag_name')
-    local_version=$(get_current_version_from_flake)
+    local_version=$(get_current_version)
 
     echo "Checking version... local=$local_version remote=$remote_version"
 
@@ -69,22 +77,28 @@ main() {
         exit 0
     fi
 
-    download_url_aarch64="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-aarch64.AppImage"
-    download_url_x86_64="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-x86_64.AppImage"
+    base_url="${download_base}/${remote_version}/helium-${remote_version}"
 
+    echo "Prefetching new hashes..."
+    new_appimage_aarch64=$(prefetch "${base_url}-arm64.AppImage")
+    new_appimage_x86_64=$(prefetch "${base_url}-x86_64.AppImage")
+    new_tarball_aarch64=$(prefetch "${base_url}-arm64_linux.tar.xz")
+    new_tarball_x86_64=$(prefetch "${base_url}-x86_64_linux.tar.xz")
 
-    echo "Prefetching new version..."
-    new_hash_aarch64=$(nix store prefetch-file --hash-type sha256 --json "$download_url_aarch64" | jq -r '.hash')
-    new_hash_x86_64=$(nix store prefetch-file --hash-type sha256 --json "$download_url_x86_64" | jq -r '.hash')
-
-    echo "Updating flake.nix..."
-
-    # Update version
-    sed -i "s/version = \"[^\"]*\";/version = \"$remote_version\";/" flake.nix
-
-    # Update SHA256
-    sed -i "s|aarch64-linux = \"sha256-[^\"]*\";|aarch64-linux = \"$new_hash_aarch64\";|" flake.nix
-    sed -i "s|x86_64-linux = \"sha256-[^\"]*\";|x86_64-linux = \"$new_hash_x86_64\";|" flake.nix
+    echo "Updating versions.nix..."
+    cat > versions.nix << EOF
+{
+  version = "$remote_version";
+  appimage = {
+    aarch64-linux = "$new_appimage_aarch64";
+    x86_64-linux  = "$new_appimage_x86_64";
+  };
+  tarball = {
+    aarch64-linux = "$new_tarball_aarch64";
+    x86_64-linux  = "$new_tarball_x86_64";
+  };
+}
+EOF
 
     echo "Updated Helium from $local_version to $remote_version"
 
