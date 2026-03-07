@@ -5,18 +5,28 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.system }})
+    name: Build ${{ matrix.package }} (${{ matrix.system }})
     strategy:
       matrix:
         include:
           - system: x86_64-linux
             runner: ubuntu-24.04
+            package: helium-appimage
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+            package: helium-tarball
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
+            package: helium-appimage
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+            package: helium-tarball
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          ref: tarball
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -27,4 +37,4 @@ jobs:
         uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Build
-        run: nix build
+        run: nix build ".#${{ matrix.package }}"
