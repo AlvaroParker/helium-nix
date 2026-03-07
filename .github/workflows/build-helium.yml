@@ -1,0 +1,40 @@
+name: Build Helium Browser
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.package }} (${{ matrix.system }})
+    strategy:
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+            package: helium-appimage
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+            package: helium-tarball
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+            package: helium-appimage
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+            package: helium-tarball
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: tarball
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixpkgs-unstable
+
+      - name: Setup Nix Magic Cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Build
+        run: nix build ".#${{ matrix.package }}"
