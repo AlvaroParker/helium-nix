@@ -40,7 +40,35 @@ with_retry() {
 }
 
 get_latest_release() {
-    with_retry curl -s "${api_base}/releases/latest"
+    echo "GETTING LATEST RELEASE" 1>&2
+    if [ -n "$GH_TOKEN" ]; then
+        echo "ATTEMPTING WITH TOKEN" 1>&2
+        with_retry curl -s -H "Authorization: Bearer ${GH_TOKEN}" "${api_base}/releases/latest"
+    else
+        echo "GH_TOKEN NOT SET!!!!!!!" 1>&2
+        with_retry curl -s "${api_base}/releases/latest"
+    fi
+}
+
+# Parse a top-level string field from the GitHub API response using grep+sed.
+# jq is intentionally avoided here: GitHub includes literal unescaped newlines
+# in the release body field, which is invalid JSON that jq refuses to parse.
+parse_field() {
+    field="$1"
+    grep -o "\"${field}\": *\"[^\"]*\"" | head -1 | sed "s/\"${field}\": *\"//;s/\"$//"
+}
+
+check_api_response() {
+    response="$1"
+
+    # A valid release object never has a top-level "message" field;
+    # GitHub uses it exclusively for API errors (rate limiting, auth, etc.)
+    message=$(echo "$response" | parse_field message)
+
+    if [ -n "$message" ]; then
+        echo "GitHub API error: $message" >&2
+        exit 1
+    fi
 }
 
 get_current_version() {
@@ -75,7 +103,19 @@ main() {
     echo "Fetching latest Helium release..."
     latest_release=$(get_latest_release)
 
-    remote_version=$(echo "$latest_release" | jq -r '.tag_name')
+    # Bail out early if the API returned an error object instead of a release
+    check_api_response "$latest_release"
+
+    remote_version=$(echo "$latest_release" | parse_field tag_name)
+
+    # A null or empty tag_name means the response was not a valid release,
+    # even if it didn't contain a top-level .message field
+    if [ -z "$remote_version" ] || [ "$remote_version" = "null" ]; then
+        echo "Error: could not parse tag_name from GitHub API response:" >&2
+        echo "$latest_release" >&2
+        exit 1
+    fi
+
     local_version=$(get_current_version)
 
     echo "Checking version... local=$local_version remote=$remote_version"

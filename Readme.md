@@ -2,6 +2,25 @@
 
 A Nix flake that packages [Helium](https://github.com/imputnet/helium), a private, fast, and honest web browser.
 
+## Fork details
+
+* Forked from [AlvaroParker/helium-nix](https://github.com/AlvaroParker/helium-nix) by [x13-me](https://github.com/x13-me/), to add support for aarch64.
+
+* Refactored to remove AppImage dependency
+
+* Workflow refactored to handle errors better, manual build verification can now be run
+
+* `main` branch tracks `latest` tag
+* `rolling` branch tracks releases, use this for `pre-release` builds
+
+Flake outputs, for both arch:
+
+```elixir
+├───default -> tarball
+├───helium-appimage - AlvaroParker  - AppImage wrapper
+└───helium-tarball  - x13-me  - Binary Tarball wrapper
+```
+
 ## Quick Start
 
 ### Using with Flakes
@@ -11,9 +30,8 @@ Add this flake as an input to your `flake.nix`:
 ```nix
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     helium = {
-      url = "github:AlvaroParker/helium-nix";
+      url = "github:x13-me/helium-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -23,9 +41,11 @@ Add this flake as an input to your `flake.nix`:
 Then install it in your system configuration:
 
 ```nix
-environment.systemPackages = [
-  inputs.helium.packages.${system}.default
-];
+{
+  environment.systemPackages = [
+    inputs.helium.packages.${system}.default
+  ];
+}
 ```
 
 ### Direct Installation
@@ -34,10 +54,10 @@ You can also install Helium directly without adding it to your flake inputs:
 
 ```bash
 # Install to user profile
-nix profile install github:AlvaroParker/helium-nix
+nix profile install github:x13-me/helium-nix
 
 # Or run directly
-nix run github:AlvaroParker/helium-nix
+nix run github:x13-me/helium-nix
 ```
 
 ### Home Manager
@@ -45,17 +65,19 @@ nix run github:AlvaroParker/helium-nix
 For Home Manager users:
 
 ```nix
-home.packages = [
-  inputs.helium.packages.${pkgs.system}.default
-];
+{
+  home.packages = [
+    inputs.helium.packages.${pkgs.system}.default
+  ];
+}
 ```
 
 ## Features
 
 - **Automatic Updates**: The flake is automatically updated via GitHub Actions when new Helium releases are available
-- **AppImage Packaging**: Uses Nix's `appimageTools` for clean packaging
+- **Binary Tarball Packaging**: No AppImage dependency
 - **Desktop Integration**: Includes proper desktop entry and icon installation
-- **Cross-System**: Works on all systems supported by Nix flakes
+- **Cross-System**: Works on `x86_64-linux` **and** `aarch64-linux`!
 
 ## Development
 

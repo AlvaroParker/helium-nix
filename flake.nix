@@ -106,6 +106,8 @@
                 --replace 'Exec=helium' 'Exec=${pname}'
               makeWrapper $out/share/helium/${pname} $out/bin/${pname} \
                 --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [ pkgs.libGL ]}
+              mkdir -p $out/share/icons/hicolor/256x256/apps
+              ln -s $out/share/helium/product_logo_256.png $out/share/icons/hicolor/256x256/apps/helium.png
             '';
           };
         in
