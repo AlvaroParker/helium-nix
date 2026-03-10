@@ -10,8 +10,11 @@ A Nix flake that packages [Helium](https://github.com/imputnet/helium), a privat
 
 * Workflow refactored to handle errors better, manual build verification can now be run
 
-* `main` branch tracks `latest` tag
-* `rolling` branch tracks releases, use this for `pre-release` builds
+[![main](https://github.com/x13-me/helium-nix/actions/workflows/update-helium.yml/badge.svg)](https://github.com/x13-me/helium-nix/actions/workflows/update-helium.yml)
+`main` branch tracks `latest` tag, use this for `release` builds
+[![rolling](https://github.com/x13-me/helium-nix/actions/workflows/update-helium.yml/badge.svg?branch=rolling)](https://github.com/x13-me/helium-nix/actions/workflows/update-helium.yml)
+`rolling` branch tracks releases, use this for `pre-release` builds
+
 
 Flake outputs, for both arch:
 
