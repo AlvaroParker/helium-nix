@@ -1,5 +1,9 @@
 #!/bin/sh
 
+repo="imputnet/helium-linux"
+api_base="https://api.github.com/repos/${repo}"
+download_base="https://github.com/${repo}/releases/download"
+
 ci=false
 if echo "$@" | grep -qoE '(--ci)'; then
     ci=true
@@ -36,15 +40,61 @@ with_retry() {
 }
 
 get_latest_release() {
-    with_retry curl -s "https://api.github.com/repos/imputnet/helium-linux/releases/latest"
+    echo "GETTING LATEST RELEASE" 1>&2
+    if [ -n "$GH_TOKEN" ]; then
+        echo "ATTEMPTING WITH TOKEN" 1>&2
+        with_retry curl -s -H "Authorization: Bearer ${GH_TOKEN}" "${api_base}/releases/latest"
+    else
+        echo "GH_TOKEN NOT SET!!!!!!!" 1>&2
+        with_retry curl -s "${api_base}/releases/latest"
+    fi
 }
 
-get_current_version_from_flake() {
-    grep -oE 'version = "[^"]+";' flake.nix | sed 's/version = "//;s/";//'
+# Parse a top-level string field from the GitHub API response using grep+sed.
+# jq is intentionally avoided here: GitHub includes literal unescaped newlines
+# in the release body field, which is invalid JSON that jq refuses to parse.
+parse_field() {
+    field="$1"
+    grep -o "\"${field}\": *\"[^\"]*\"" | head -1 | sed "s/\"${field}\": *\"//;s/\"$//"
 }
 
-get_current_sha256_from_flake() {
-    grep -oE 'sha256 = "[^"]+";' flake.nix | sed 's/sha256 = "//;s/";//'
+check_api_response() {
+    response="$1"
+
+    # A valid release object never has a top-level "message" field;
+    # GitHub uses it exclusively for API errors (rate limiting, auth, etc.)
+    message=$(echo "$response" | parse_field message)
+
+    if [ -n "$message" ]; then
+        echo "GitHub API error: $message" >&2
+        exit 1
+    fi
+}
+
+get_current_version() {
+    grep -oE 'version = "[^"]+";' versions.nix | sed 's/version = "//;s/";//'
+}
+
+prefetch() {
+    nix store prefetch-file --hash-type sha256 --json "$1" | jq -r '.hash'
+}
+
+write_versions_nix() {
+    cat > versions.nix << EOF
+{
+  version = "$1";
+  systems = {
+    aarch64-linux = {
+      appimage = "$2";
+      tarball  = "$3";
+    };
+    x86_64-linux = {
+      appimage = "$4";
+      tarball  = "$5";
+    };
+  };
+}
+EOF
 }
 
 main() {
@@ -53,8 +103,20 @@ main() {
     echo "Fetching latest Helium release..."
     latest_release=$(get_latest_release)
 
-    remote_version=$(echo "$latest_release" | jq -r '.tag_name')
-    local_version=$(get_current_version_from_flake)
+    # Bail out early if the API returned an error object instead of a release
+    check_api_response "$latest_release"
+
+    remote_version=$(echo "$latest_release" | parse_field tag_name)
+
+    # A null or empty tag_name means the response was not a valid release,
+    # even if it didn't contain a top-level .message field
+    if [ -z "$remote_version" ] || [ "$remote_version" = "null" ]; then
+        echo "Error: could not parse tag_name from GitHub API response:" >&2
+        echo "$latest_release" >&2
+        exit 1
+    fi
+
+    local_version=$(get_current_version)
 
     echo "Checking version... local=$local_version remote=$remote_version"
 
@@ -73,20 +135,21 @@ main() {
         exit 0
     fi
 
-    download_url="https://github.com/imputnet/helium-linux/releases/download/${remote_version}/helium-${remote_version}-x86_64.AppImage"
+    base_url="${download_base}/${remote_version}/helium-${remote_version}"
 
-    echo "Prefetching new version..."
-    prefetch_output=$(nix store prefetch-file --hash-type sha256 --json "$download_url")
-    new_sha256=$(echo "$prefetch_output" | jq -r '.hash')
+    echo "Prefetching new hashes..."
+    new_aarch64_appimage=$(prefetch "${base_url}-arm64.AppImage")
+    new_aarch64_tarball=$(prefetch "${base_url}-arm64_linux.tar.xz")
+    new_x86_64_appimage=$(prefetch "${base_url}-x86_64.AppImage")
+    new_x86_64_tarball=$(prefetch "${base_url}-x86_64_linux.tar.xz")
 
-    echo "Updating flake.nix..."
-
-    # Update version
-    sed -i "s/version = \"[^\"]*\";/version = \"$remote_version\";/" flake.nix
-
-    # Update SHA256
-    old_sha256=$(get_current_sha256_from_flake)
-    sed -i "s|sha256 = \"$old_sha256\";|sha256 = \"$new_sha256\";|" flake.nix
+    echo "Updating versions.nix..."
+    write_versions_nix \
+        "$remote_version" \
+        "$new_aarch64_appimage" \
+        "$new_aarch64_tarball" \
+        "$new_x86_64_appimage" \
+        "$new_x86_64_tarball"
 
     echo "Updated Helium from $local_version to $remote_version"
 
