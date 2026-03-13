@@ -1,4 +1,4 @@
-name: Update Helium Browser
+name: Update Helium Browser [main]
 
 on:
   workflow_dispatch:
@@ -16,7 +16,9 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
+        with:
+          ref: 'main'
 
       - name: Check if update is needed
         id: check
@@ -76,7 +78,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
+        with:
+          ref: 'main'
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
